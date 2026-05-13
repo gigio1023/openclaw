@@ -1,5 +1,5 @@
 import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
-import { formatBlockedLivenessError, isBlockedLivenessState } from "../shared/agent-liveness.js";
+import { extractTextFromChatContent } from "../shared/chat-content.js";
 import { wrapPromptDataBlock } from "./sanitize-for-prompt.js";
 import {
   captureSubagentCompletionReplyUsing,
@@ -7,10 +7,9 @@ import {
 } from "./subagent-announce-capture.js";
 import {
   callGateway,
+  getSessionEntry,
   getRuntimeConfig,
-  readSessionEntry,
   resolveAgentIdFromSessionKey,
-  resolveStorePath,
 } from "./subagent-announce.runtime.js";
 import { assistantCallsSessionsYield, isSessionsYieldToolResult } from "./subagent-yield-output.js";
 import { extractAssistantText, sanitizeTextContent } from "./tools/session-message-text.js";
@@ -21,17 +20,13 @@ const FAST_TEST_RETRY_INTERVAL_MS = 8;
 type SubagentAnnounceOutputDeps = {
   callGateway: typeof callGateway;
   getRuntimeConfig: typeof getRuntimeConfig;
-  readSessionEntry: typeof readSessionEntry;
-  resolveAgentIdFromSessionKey: typeof resolveAgentIdFromSessionKey;
-  resolveStorePath: typeof resolveStorePath;
+  readLatestAssistantReply: typeof readLatestAssistantReply;
 };
 
 const defaultSubagentAnnounceOutputDeps: SubagentAnnounceOutputDeps = {
   callGateway,
   getRuntimeConfig,
-  readSessionEntry,
-  resolveAgentIdFromSessionKey,
-  resolveStorePath,
+  readLatestAssistantReply,
 };
 
 let subagentAnnounceOutputDeps: SubagentAnnounceOutputDeps = defaultSubagentAnnounceOutputDeps;
@@ -230,10 +225,7 @@ export function applySubagentWaitOutcome(params: {
   }
   const waitError = typeof params.wait?.error === "string" ? params.wait.error : undefined;
   let outcome = next.outcome;
-  // Capture/announcement callers can pass raw wait snapshots that bypass the primary normalizers.
-  if (isBlockedLivenessState(params.wait?.livenessState)) {
-    outcome = { status: "error", error: formatBlockedLivenessError(waitError) };
-  } else if (params.wait?.status === "timeout") {
+  if (params.wait?.status === "timeout") {
     outcome = { status: "timeout" };
   } else if (params.wait?.status === "error") {
     outcome = { status: "error", error: waitError };
@@ -427,10 +419,8 @@ export async function buildCompactAnnounceStatsLine(params: {
   startedAt?: number;
   endedAt?: number;
 }) {
-  const cfg = subagentAnnounceOutputDeps.getRuntimeConfig();
-  const agentId = subagentAnnounceOutputDeps.resolveAgentIdFromSessionKey(params.sessionKey);
-  const storePath = subagentAnnounceOutputDeps.resolveStorePath(cfg.session?.store, { agentId });
-  let entry = subagentAnnounceOutputDeps.readSessionEntry(storePath, params.sessionKey);
+  const agentId = resolveAgentIdFromSessionKey(params.sessionKey);
+  let entry = getSessionEntry({ agentId, sessionKey: params.sessionKey });
   const tokenWaitAttempts = isFastTestMode() ? 1 : 3;
   for (let attempt = 0; attempt < tokenWaitAttempts; attempt += 1) {
     const hasTokenData =
@@ -443,7 +433,7 @@ export async function buildCompactAnnounceStatsLine(params: {
     if (!isFastTestMode()) {
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
-    entry = subagentAnnounceOutputDeps.readSessionEntry(storePath, params.sessionKey);
+    entry = getSessionEntry({ agentId, sessionKey: params.sessionKey });
   }
 
   const input = typeof entry?.inputTokens === "number" ? entry.inputTokens : 0;
