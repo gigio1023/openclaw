@@ -791,7 +791,6 @@ export async function getReplyFromConfig(
         sessionEntry.parentSessionKey ??
         sessionCtx.ModelParentSessionKey ??
         sessionCtx.ParentSessionKey,
-      storePath,
       defaultProvider,
       defaultModel,
       primaryProvider,
