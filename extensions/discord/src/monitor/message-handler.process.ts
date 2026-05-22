@@ -856,14 +856,12 @@ export async function processDiscordMessage(
               );
             },
             onItemEvent: async (payload) => {
-              if (
-                draftPreview.commentaryProgressEnabled &&
-                payload.kind === "preamble" &&
-                payload.progressText
-              ) {
-                await draftPreview.pushCommentaryProgress(payload.progressText, {
-                  itemId: payload.itemId,
-                });
+              if (payload.kind === "preamble") {
+                if (draftPreview.commentaryProgressEnabled && payload.progressText) {
+                  await draftPreview.pushCommentaryProgress(payload.progressText, {
+                    itemId: payload.itemId,
+                  });
+                }
                 return;
               }
               await draftPreview.pushToolProgress(
