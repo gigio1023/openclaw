@@ -124,7 +124,8 @@ mantis/
 !.agents/skills/clawdtributor/**
 !.agents/skills/gitcrawl/
 !.agents/skills/gitcrawl/**
-!.agents/skills/openclaw-docs/**
+!.agents/skills/technical-documentation/
+!.agents/skills/technical-documentation/**
 !.agents/skills/openclaw-refactor-docs/
 !.agents/skills/openclaw-refactor-docs/**
 !.agents/skills/openclaw-debugging/
